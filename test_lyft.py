@@ -1,33 +1,49 @@
 from selenium import webdriver
 import pytest
-from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import page_selctors
 
-import selectors
+defalut_wait = 10
+base_url = 'https://help.lyft.com/hc/en-us'
+cases = [
+    {
+        'query': 'Pick up, renew, and return your Express Drive rental',
+        'expected_url': 'Rental-car-pickups-renewals-and-returns',
+        'bullet': 'Renew',
+        'expected_text': 'Renew'
+    }
+]
 
-base_url = 'https://help.lyft.com'
-cases= {
-        'query': 'Pick up, renew, and return your Express Drive rental',
-        'expected-url': 'https://help.lyft.com/hc/en-us/all/articles/360001562167-Rental-car-pickups-renewals-and-returns',
-        'bullet': 'Renew',
-        'expected-text': 'Renew'
-        }, {
-        'query': 'Pick up, renew, and return your Express Drive rental',
-        'expected-url': 'https://help.lyft.com/hc/en-us/all/articles/360001562167-Rental-car-pickups-renewals-and-returns',
-        'bullet': 'Renew',
-        'expected-text': 'Renew'
-        }
+
+@pytest.fixture(autouse=True, scope='class')
+def driver():
+    driver = webdriver.Firefox()
+    driver.get(base_url)
+    yield driver
+    driver.quit()
+
+
+def wait_for_element(driver, selector):
+    WebDriverWait(driver, defalut_wait).until(EC.element_to_be_clickable(selector))
+    return driver.find_element(*selector)
+
+
+def wait_for_element_to_disappear(driver, selector):
+    WebDriverWait(driver, defalut_wait).until(EC.invisibility_of_element(selector))
+    return True
 
 
 @pytest.mark.parametrize("case", cases)
-def test_LyftExample(case):
-    driver = webdriver.Firefox()
-    driver.get(base_url)
-    driver.find_element(selectors.helppage('closebutton')).click()
-    driver.find_element(selectors.helppage('searchField')).click()
-    driver.find_element(selectors.helppage('searchField')).send_keys(case['query'])
-    driver.find_element(selectors.helppage('searchButton')).click()
-    #driver.find_element(By.XPATH, '//*[@aria-label="Pick up, renew, and return your Express Drive renta"]').click()
-    WebDriverWait(driver, 100)
-    #driver.find_element(By.XPATH, '//*[text()="'+case['bullet']+'"]').click()
-    #assert driver.find_element(By.XPATH, '//*[text()="'+case['expected-text']+'"]').is_displayed()
-    driver.close()
+def test_lyft_example(case, driver):
+    wait_for_element(driver, page_selctors.help_page('closeButton')).click()
+    search_field = wait_for_element(driver, page_selctors.help_page('searchField'))
+    search_field.click()
+    search_field.send_keys(case['query'])
+    wait_for_element(driver, page_selctors.help_page('searchButton')).click()
+    wait_for_element_to_disappear(driver, page_selctors.help_page('progressBar'))
+    wait_for_element(driver, page_selctors.dynamic_help_page('result',case['query'])).click()
+    WebDriverWait(driver, defalut_wait).until(EC.url_contains(case['expected_url']))
+    wait_for_element(driver, page_selctors.dynamic_help_page('bullet',case['bullet'])).click()
+    assert driver.find_element(By.XPATH, '//*[contains(text(),\''+case['expected_text']+'\')]').is_displayed()
